@@ -1,15 +1,26 @@
 """CARPK data loading, statistics and exploration (Phase 1, section 3)."""
+import sys
+from pathlib import Path
+
+_SRC = str(Path(__file__).resolve().parents[1])  # make `common` importable
+if _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
+
 import numpy as np
 import pandas as pd
 from PIL import Image
 
-from config import ANN, SETS, IMG_W, IMG_H, img_path
+from common.boxes import xyxy_to_yolo
+from common.config import ANN, IMG_W, IMG_H
+from common.data import (img_path, is_valid_box, load_split_ids,
+                         parse_annotation_lines, split_train_val)
+from common.plotting import show_image_with_boxes
 
 
 def load_splits():
     """Return the official (train_ids, test_ids, all_ids) and sanity-check them."""
-    train_ids = SETS.joinpath("train.txt").read_text().split()
-    test_ids = SETS.joinpath("test.txt").read_text().split()
+    train_ids = load_split_ids("train")
+    test_ids = load_split_ids("test")
     all_ids = sorted(p.stem for p in ANN.glob("*.txt"))
 
     print(f"#images total : {len(all_ids)}")
@@ -55,13 +66,14 @@ def parse_annotations(all_ids, train_ids):
 
     for img_id in all_ids:
         n = 0
-        for line in ANN.joinpath(f"{img_id}.txt").read_text().splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            x1, y1, x2, y2, cls = map(int, line.split())
+        split = "train" if img_id in train_set else "test"
+        for x1, y1, x2, y2, cls in parse_annotation_lines(
+                ANN.joinpath(f"{img_id}.txt").read_text()):
             w, h = x2 - x1, y2 - y1
-            split = "train" if img_id in train_set else "test"
+            if not is_valid_box(x1, y1, x2, y2):
+                degenerate.append(dict(img_id=img_id, split=split, x1=x1, y1=y1,
+                                       x2=x2, y2=y2, cls=cls, w=w, h=h))
+                continue
             records.append(dict(img_id=img_id, split=split,
                                 x1=x1, y1=y1, x2=x2, y2=y2, cls=cls,
                                 w=w, h=h, area=w * h, aspect=w / h))
@@ -138,7 +150,7 @@ def box_size_stats(boxes):
 def plot_box_wh(boxes):
     """Plot width and height distributions of the bounding boxes."""
     import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(1, 2, figsize=(12, 4))
+    _, ax = plt.subplots(1, 2, figsize=(12, 4))
     ax[0].hist(boxes["w"], bins=60, color="#3182bd", edgecolor="white")
     ax[0].set_title("Box width (px)")
     ax[0].set_xlabel("w"); ax[0].set_ylabel("# boxes")
@@ -152,7 +164,7 @@ def plot_box_wh(boxes):
 
 def plot_box_sizes(boxes):
     import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(1, 2, figsize=(12, 4))
+    _, ax = plt.subplots(1, 2, figsize=(12, 4))
     ax[0].hist(np.sqrt(boxes["area"]), bins=60, color="#756bb1", edgecolor="white")
     ax[0].set_title("Box size  sqrt(area) (px)")
     ax[0].set_xlabel("sqrt(area)"); ax[0].set_ylabel("# boxes")
@@ -168,30 +180,17 @@ def plot_box_sizes(boxes):
 
 def plot_sample_gt(boxes, train_ids):
     """Show one training image with its ground-truth boxes (green)."""
-    import matplotlib.pyplot as plt
-    import matplotlib.patches as patches
-
     sid = train_ids[0]
-    img = Image.open(img_path(sid))
     sb = boxes[boxes.img_id == sid]
-
-    fig, ax = plt.subplots(figsize=(12, 7))
-    ax.imshow(img)
-    for _, r in sb.iterrows():
-        ax.add_patch(patches.Rectangle((r.x1, r.y1), r.w, r.h,
-                     fill=False, edgecolor="lime", linewidth=1))
-    ax.set_title(f"{sid}  —  {len(sb)} cars (ground truth)")
-    ax.axis("off")
-    plt.show()
+    show_image_with_boxes(Image.open(img_path(sid)),
+                          sb[["x1", "y1", "x2", "y2"]].to_numpy(),
+                          title=f"{sid}  —  {len(sb)} cars (ground truth)")
 
 
 def conversion_demo(boxes):
     """Demonstrate the CARPK -> normalized YOLO conversion on one box."""
     r = boxes.iloc[0]
-    cx = (r.x1 + r.x2) / (2 * IMG_W)
-    cy = (r.y1 + r.y2) / (2 * IMG_H)
-    nw = (r.x2 - r.x1) / IMG_W
-    nh = (r.y2 - r.y1) / IMG_H
+    cx, cy, nw, nh = xyxy_to_yolo(r.x1, r.y1, r.x2, r.y2, IMG_W, IMG_H)
     print(f"CARPK : {r.x1} {r.y1} {r.x2} {r.y2} {r.cls}")
     print(f"YOLO  : 0 {cx:.6f} {cy:.6f} {nw:.6f} {nh:.6f}")
     assert all(0 <= v <= 1 for v in (cx, cy, nw, nh)), "normalized values out of range"
@@ -200,14 +199,12 @@ def conversion_demo(boxes):
 
 
 def train_val_partition(train_ids, test_ids, per_image_counts, val_frac=0.10, seed=42):
-    """Reproducible train/val carve from the official training ids."""
+    """Reproducible train/val carve from the official training ids.
+
+    Uses the same carve as the Phase 2 YOLO dataset (``common.data.split_train_val``).
+    """
     counts = pd.Series(per_image_counts)
-    rng = np.random.default_rng(seed)
-    tr = np.array(sorted(train_ids))
-    perm = rng.permutation(len(tr))
-    val_n = round(val_frac * len(tr))
-    val_ids = sorted(tr[perm[:val_n]])
-    train_fit = sorted(tr[perm[val_n:]])
+    train_fit, val_ids = split_train_val(train_ids, val_frac, seed)
 
     partition = pd.DataFrame({
         "split": ["train (fit)", "val", "test"],

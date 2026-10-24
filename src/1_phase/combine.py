@@ -6,9 +6,19 @@ so they can be merged into a single *final* devkit that the rest of the project
 treats as one dataset.  Image ids are namespaced with a ``carpk__`` / ``pucpr__``
 prefix so the two sources never clash and their origin stays traceable.
 """
-from pathlib import Path
 import shutil
+import sys
+from pathlib import Path
+
+_SRC = str(Path(__file__).resolve().parents[1])  # make `common` importable
+if _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
+
 import pandas as pd
+
+from common.config import DATA as COMBINED
+from common.data import (find_image, is_valid_box, load_split_ids,
+                         parse_annotation_lines, place_file)
 
 # Source devkits -> their data directory (same on-disk layout for both).
 SOURCES = {
@@ -16,14 +26,9 @@ SOURCES = {
     "pucpr": Path("datasets/PUCPR+_devkit/data"),
 }
 
-# Destination "final" combined devkit, mirroring the source layout.
-COMBINED = Path("datasets/combined_devkit/data")
-
 # Splits we carry over.  Right now we simply reuse the dataset authors' official
 # train/test split (their ``ImageSets/*.txt`` files) -- see ``author_split``.
 SPLITS = ("train", "test")
-
-_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".PNG", ".JPG", ".JPEG")
 
 
 def _clean_annotation(text):
@@ -36,38 +41,12 @@ def _clean_annotation(text):
     consumer to filter them out.
     """
     kept, n_dropped = [], 0
-    for line in text.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        x1, y1, x2, y2, _cls = map(int, line.split())
-        if x2 - x1 <= 0 or y2 - y1 <= 0:
+    for box in parse_annotation_lines(text):
+        if is_valid_box(*box[:4]):
+            kept.append(" ".join(map(str, box)))
+        else:
             n_dropped += 1
-            continue
-        kept.append(line)
     return ("\n".join(kept) + "\n" if kept else ""), n_dropped
-
-
-def _find_image(data_dir, img_id):
-    """Return the image file for ``img_id`` inside ``data_dir`` (any known ext)."""
-    for ext in _IMAGE_EXTS:
-        p = data_dir / "Images" / f"{img_id}{ext}"
-        if p.exists():
-            return p
-    raise FileNotFoundError(f"no image for id {img_id!r} in {data_dir / 'Images'}")
-
-
-def _place_file(src, dst, link):
-    """Symlink (default) or copy ``src`` to ``dst``, replacing any existing file."""
-    if dst.exists() or dst.is_symlink():
-        dst.unlink()
-    if link:
-        try:
-            dst.symlink_to(src.resolve())
-            return
-        except OSError:
-            pass  # filesystem without symlink support -> fall back to copy
-    shutil.copy2(src, dst)
 
 
 def author_split(data_dir):
@@ -79,10 +58,7 @@ def author_split(data_dir):
     custom random carve) can be plugged in here in the future without touching
     the merge logic.
     """
-    return {
-        split: (data_dir / "ImageSets" / f"{split}.txt").read_text().split()
-        for split in SPLITS
-    }
+    return {split: load_split_ids(split, data_dir / "ImageSets") for split in SPLITS}
 
 
 def _merge_source(name, data_dir, ann_dir, img_dir, merged, link_images):
@@ -104,8 +80,8 @@ def _merge_source(name, data_dir, ann_dir, img_dir, merged, link_images):
             n_dropped_total += n_dropped
             n_cars += len([ln for ln in cleaned.splitlines() if ln.strip()])
 
-            img_src = _find_image(data_dir, img_id)
-            _place_file(img_src, img_dir / f"{new_id}{img_src.suffix}", link_images)
+            img_src = find_image(data_dir / "Images", img_id)
+            place_file(img_src, img_dir / f"{new_id}{img_src.suffix}", link_images)
 
             merged.setdefault(split, []).append(new_id)
 
