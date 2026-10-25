@@ -9,6 +9,8 @@ IMAGES, ANN, SETS = DATA / "Images", DATA / "Annotations", DATA / "ImageSets"
 
 YOLO_DIR = Path("datasets/yolo")               # built by src/2_phase/carpk_to_yolo.py
 DATA_YAML = YOLO_DIR / "carpk.yaml"
+TRAIN_EVAL_DIR = YOLO_DIR / "train_eval"       # fixed train subset scored every epoch (common/train_eval.py)
+TRAIN_EVAL_IMAGES = 200
 
 DEFAULT_WEIGHTS = "models/yolo11n.pt"
 MODEL_CFG = "yolo11n.yaml"
