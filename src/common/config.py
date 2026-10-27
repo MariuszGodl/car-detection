@@ -18,7 +18,10 @@ MODEL_CFG = "yolo11n.yaml"
 IMG_W, IMG_H = 1280, 720   # native resolution
 CAR_COCO_ID = 2            # 'car' in COCO
 IMGSZ, CONF = 1280, 0.25
+MAX_DET = 1000             # Ultralytics default is 300 < densest image (331 cars) -> would clip counts
 
 DEVICES = (0, 1)           # 2x RTX 4080 SUPER -> DDP
 BATCH_PER_GPU = 16         # ~11 GB VRAM per GPU at imgsz 1280
-EPOCHS, PATIENCE, SEED = 100, 5, 42
+# PATIENCE = 0 disables early stopping: the run uses the whole lr decay and the last `close_mosaic`
+# (10) epochs without mosaic; best.pt is still the epoch with the best val fitness.
+EPOCHS, PATIENCE, SEED = 100, 0, 42

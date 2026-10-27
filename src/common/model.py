@@ -4,7 +4,7 @@ from pathlib import Path
 
 from ultralytics import YOLO
 
-from .config import CAR_COCO_ID, CONF, DEFAULT_WEIGHTS, IMGSZ
+from .config import CAR_COCO_ID, CONF, DEFAULT_WEIGHTS, IMGSZ, MAX_DET
 
 
 def ensure_weights(weights=DEFAULT_WEIGHTS) -> str:
@@ -32,4 +32,5 @@ def load_model(weights=DEFAULT_WEIGHTS):
 
 def predict_cars(model, source):
     """COCO 'car' detections of the un-fine-tuned model on one image."""
-    return model.predict(source, classes=[CAR_COCO_ID], imgsz=IMGSZ, conf=CONF, verbose=False, device=0)[0]
+    return model.predict(source, classes=[CAR_COCO_ID], imgsz=IMGSZ, conf=CONF, max_det=MAX_DET,
+                         verbose=False, device=0)[0]

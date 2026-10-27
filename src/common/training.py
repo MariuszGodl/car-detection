@@ -18,7 +18,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from .config import BATCH_PER_GPU, DATA_YAML, DEFAULT_WEIGHTS, DEVICES, EPOCHS, IMGSZ, PATIENCE, ROOT, RUNS_DIR, SEED
+from .config import (BATCH_PER_GPU, DATA_YAML, DEFAULT_WEIGHTS, DEVICES, EPOCHS, IMGSZ, MAX_DET, PATIENCE, ROOT,
+                     RUNS_DIR, SEED)
 
 TRAIN_SCRIPT = ROOT / "src" / "2_phase" / "train.py"
 LOSS_COLS = ["train/box_loss", "train/cls_loss", "train/dfl_loss"]
@@ -34,7 +35,7 @@ def train_args(data=DATA_YAML, epochs=EPOCHS, batch_per_gpu=BATCH_PER_GPU, devic
     args = {"data": str(Path(data).resolve()), "epochs": epochs, "imgsz": IMGSZ,
             "batch": batch_per_gpu * len(devices), "device": devices if len(devices) > 1 else devices[0],
             "project": str(Path(project).resolve()), "name": name, "exist_ok": True,
-            "seed": SEED, "deterministic": False, "patience": PATIENCE, **overrides}
+            "seed": SEED, "deterministic": False, "patience": PATIENCE, "max_det": MAX_DET, **overrides}
     if train_eval:
         args["train_eval"] = True   # popped by src/2_phase/train.py
     return args

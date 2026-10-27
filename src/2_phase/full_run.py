@@ -12,10 +12,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common import train_eval
 from common.boxes import read_yolo_labels
-from common.config import CONF, DATA_YAML, IMGSZ, ROOT, RUNS_DIR, YOLO_DIR
+from common.config import CONF, DATA_YAML, IMGSZ, MAX_DET, ROOT, RUNS_DIR, YOLO_DIR
 from common.training import read_results
 
-OLD_OUTPUTS = (RUNS_DIR,                            # checks/ (1 GPU, DDP, resume), sanity/, detect/ (COCO8 run)
+# Only the check runs - never the whole runs/ dir, which also holds the real training runs (runs/train/*).
+OLD_OUTPUTS = (RUNS_DIR / "checks", RUNS_DIR / "sanity", RUNS_DIR / "detect",   # 1 GPU / DDP / resume, overfit, COCO8
                ROOT / "datasets" / "coco8",         # auto-downloaded by the accidental COCO8 run
                ROOT / "datasets" / "yolo_sanity")   # 4-image overfit set from section 6
 METRICS = ["precision(B)", "recall(B)", "mAP50(B)", "mAP50-95(B)"]
@@ -76,7 +77,7 @@ def evaluate_splits(weights, splits=("train", "val", "test"), device=0, batch=16
     rows = {}
     for split in splits:
         m = YOLO(str(weights)).val(data=str(ROOT / DATA_YAML), split=split, imgsz=IMGSZ, batch=batch,
-                                   device=device, project=str(run_dir), name=f"eval_{split}", exist_ok=True,
+                                   device=device, max_det=MAX_DET, project=str(run_dir), name=f"eval_{split}", exist_ok=True,
                                    verbose=False)
         rows[split] = {"images": len(list((ROOT / YOLO_DIR / "images" / split).iterdir())),
                        **{k: m.results_dict[f"metrics/{k}"] for k in METRICS}}
@@ -105,7 +106,8 @@ def show_predictions(weights, n=10, split="test", seed=0, conf=CONF, device=0, c
     model = YOLO(str(weights))
     imgs = sorted((ROOT / YOLO_DIR / "images" / split).iterdir())
     pick = sorted(random.Random(seed).sample(imgs, min(n, len(imgs))))
-    results = model.predict([str(p) for p in pick], imgsz=IMGSZ, conf=conf, device=device, verbose=False)
+    results = model.predict([str(p) for p in pick], imgsz=IMGSZ, conf=conf, max_det=MAX_DET, device=device,
+                            verbose=False)
     nrows = math.ceil(len(pick) / cols)
     fig, axes = plt.subplots(nrows, cols, figsize=(8 * cols, 4.6 * nrows), squeeze=False)
     rows = []
