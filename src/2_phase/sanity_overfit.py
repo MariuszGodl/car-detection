@@ -28,12 +28,14 @@ def make_overfit_dataset(n_images=4) -> Path:
     """Tiny dataset of ``n_images`` train images spread over the split (CARPK and PUCPR+)."""
     images = sorted((YOLO_DIR / "images" / "train").iterdir())
     step = len(images) // n_images
-    shutil.rmtree(SANITY_DIR, ignore_errors=True)
+    selected_images = images[step // 2::step][:n_images]
+    if SANITY_DIR.exists():
+        shutil.rmtree(SANITY_DIR)
     (SANITY_DIR / "images").mkdir(parents=True)
     (SANITY_DIR / "labels").mkdir()
-    for img in images[step // 2::step][:n_images]:
-        link(img, SANITY_DIR / "images" / img.name)
-        shutil.copy(YOLO_DIR / "labels" / "train" / f"{img.stem}.txt", SANITY_DIR / "labels")
+    for image in selected_images:
+        link(image, SANITY_DIR / "images" / image.name)
+        shutil.copy(YOLO_DIR / "labels" / "train" / f"{image.stem}.txt", SANITY_DIR / "labels")
     yaml_path = SANITY_DIR / "sanity.yaml"
     yaml_path.write_text(f"path: {SANITY_DIR}\ntrain: images\nval: images\nnc: 1\nnames:\n  0: car\n")
     return yaml_path
@@ -41,33 +43,38 @@ def make_overfit_dataset(n_images=4) -> Path:
 
 def run_overfit(data_yaml, epochs=200, n_images=4) -> Path:
     """Train on the single batch on GPU 0 (``batch == nbs == n_images`` -> one step per epoch)."""
-    return launch(train_args(data_yaml, epochs, batch_per_gpu=n_images, devices=[0], project=RUNS_DIR / "sanity",
-                             name="overfit_one_batch", nbs=n_images, **OVERFIT_ARGS))
+    args = train_args(
+        data=data_yaml, epochs=epochs, batch_per_gpu=n_images, devices=[0],
+        project=RUNS_DIR / "sanity", name="overfit_one_batch", nbs=n_images, **OVERFIT_ARGS,
+    )
+    return launch(args)
 
 
 def check_overfit(run_dir, max_loss_ratio=0.1, min_map50=0.95) -> None:
     """Assert the box+cls loss collapsed and the batch is (almost) perfectly fit."""
-    df = read_results(run_dir)
-    box_cls = df["train/box_loss"] + df["train/cls_loss"]
-    ratio, map50 = box_cls.iloc[-1] / box_cls.iloc[0], df["metrics/mAP50(B)"].iloc[-1]
-    print(f"total train loss: {df['train/total_loss'].iloc[0]:.3f} -> {df['train/total_loss'].iloc[-1]:.3f} "
-          f"over {len(df)} epochs (1 step each)")
-    print(f"box+cls loss    : {box_cls.iloc[0]:.3f} -> {box_cls.iloc[-1]:.3f} ({ratio:.1%} of start); "
-          f"DFL floor {df['train/dfl_loss'].iloc[-1]:.3f}")
+    results = read_results(run_dir)
+    box_cls = results["train/box_loss"] + results["train/cls_loss"]
+    loss_ratio = box_cls.iloc[-1] / box_cls.iloc[0]
+    map50 = results["metrics/mAP50(B)"].iloc[-1]
+    print(f"total train loss: {results['train/total_loss'].iloc[0]:.3f} -> "
+          f"{results['train/total_loss'].iloc[-1]:.3f} over {len(results)} epochs (1 step each)")
+    print(f"box+cls loss    : {box_cls.iloc[0]:.3f} -> {box_cls.iloc[-1]:.3f} ({loss_ratio:.1%} of start); "
+          f"DFL floor {results['train/dfl_loss'].iloc[-1]:.3f}")
     print(f"mAP50 on the memorised batch: {map50:.3f}")
-    assert ratio <= max_loss_ratio, "box+cls loss did not collapse"
+    assert loss_ratio <= max_loss_ratio, "box+cls loss did not collapse"
     assert map50 >= min_map50, "model failed to memorise the batch"
 
 
 def plot_overfit(run_dir) -> None:
-    df = read_results(run_dir)
-    _, (a, b) = plt.subplots(1, 2, figsize=(13, 4))
-    for c in LOSS_COLS + ["train/total_loss"]:
-        a.plot(df["epoch"], df[c], label=c.split("/")[1])
-    a.set(yscale="log", xlabel="epoch (= 1 step)", title="training loss")
-    for c in ("metrics/mAP50(B)", "metrics/mAP50-95(B)"):
-        b.plot(df["epoch"], df[c], label=c.split("/")[1])
-    b.set(xlabel="epoch", title="val (= the same batch)")
-    a.legend(), b.legend()
+    results = read_results(run_dir)
+    _, (loss_ax, metric_ax) = plt.subplots(1, 2, figsize=(13, 4))
+    for column in LOSS_COLS + ["train/total_loss"]:
+        loss_ax.plot(results["epoch"], results[column], label=column.split("/")[1])
+    loss_ax.set(yscale="log", xlabel="epoch (= 1 step)", title="training loss")
+    for column in ("metrics/mAP50(B)", "metrics/mAP50-95(B)"):
+        metric_ax.plot(results["epoch"], results[column], label=column.split("/")[1])
+    metric_ax.set(xlabel="epoch", title="val (= the same batch)")
+    loss_ax.legend()
+    metric_ax.legend()
     plt.tight_layout()
     plt.show()

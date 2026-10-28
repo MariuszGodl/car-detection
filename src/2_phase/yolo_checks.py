@@ -13,18 +13,21 @@ from common.plotting import show_image_with_boxes
 def summarize_splits(out_dir) -> None:
     """Assert every split has one label file per image."""
     for split in ("train", "val", "test"):
-        n_img = len(list((Path(out_dir) / "images" / split).iterdir()))
-        n_lbl = len(list((Path(out_dir) / "labels" / split).iterdir()))
-        print(f"{split:5s}: {n_img} images, {n_lbl} labels")
-        assert n_img == n_lbl
+        image_count = len(list((Path(out_dir) / "images" / split).iterdir()))
+        label_count = len(list((Path(out_dir) / "labels" / split).iterdir()))
+        print(f"{split:5s}: {image_count} images, {label_count} labels")
+        assert image_count == label_count
 
 
 def validate_labels(out_dir) -> None:
     """Assert every label is class 0 with coordinates in [0, 1]."""
-    bad = sum(cls != 0 or not all(0 <= v <= 1 for v in vals)
-              for p in (Path(out_dir) / "labels").rglob("*.txt") for cls, *vals in read_yolo_labels(p))
-    print("out-of-range / wrong-class label lines:", bad)
-    assert bad == 0
+    invalid_count = 0
+    for label_path in (Path(out_dir) / "labels").rglob("*.txt"):
+        for car_class, *coordinates in read_yolo_labels(label_path):
+            if car_class != 0 or not all(0 <= value <= 1 for value in coordinates):
+                invalid_count += 1
+    print("out-of-range / wrong-class label lines:", invalid_count)
+    assert invalid_count == 0
 
 
 def pick_sample(out_dir, split="train") -> Path:
@@ -39,7 +42,14 @@ def check_symlink(path) -> None:
 
 def show_sample(out_dir, image_path, split="train"):
     """Overlay the YOLO labels (decoded back to pixels) on ``image_path``."""
-    img = Image.open(image_path)
-    rows = read_yolo_labels(Path(out_dir) / "labels" / split / f"{Path(image_path).stem}.txt")
-    boxes = [yolo_to_xyxy(*r[1:], *img.size) for r in rows]
-    return show_image_with_boxes(img, boxes, title=f"{Path(image_path).stem} — YOLO labels decoded back to pixels")
+    image_path = Path(image_path)
+    label_path = Path(out_dir) / "labels" / split / f"{image_path.stem}.txt"
+    labels = read_yolo_labels(label_path)
+    with Image.open(image_path) as image:
+        boxes = [
+            yolo_to_xyxy(center_x, center_y, width, height, *image.size)
+            for _, center_x, center_y, width, height in labels
+        ]
+        return show_image_with_boxes(
+            image, boxes, title=f"{image_path.stem} — YOLO labels decoded back to pixels"
+        )

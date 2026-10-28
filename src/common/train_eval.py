@@ -1,3 +1,9 @@
+"""Accuracy on (unaugmented) training images, per epoch.
+
+Ultralytics only scores val during training. :func:`on_fit_epoch_end` also runs its validator on a fixed
+subset of train images (:func:`make_subset`) and appends the result to ``<run>/train_eval.csv`` and TensorBoard,
+so train and val curves can be compared to spot over-fitting.
+"""
 import random
 import shutil
 from pathlib import Path
@@ -15,16 +21,17 @@ def make_subset(n=TRAIN_EVAL_IMAGES, seed=SEED, src=YOLO_DIR, dst=None) -> Path:
     ``dst`` (default ``<src>/train_eval``, where :func:`on_fit_epoch_end` looks for it)."""
     src = ROOT / src
     dst = ROOT / dst if dst else src / "train_eval"
-    imgs = sorted((src / "images" / "train").iterdir())
-    pick = sorted(random.Random(seed).sample(imgs, min(n, len(imgs))))
-    shutil.rmtree(dst, ignore_errors=True)
+    images = sorted((src / "images" / "train").iterdir())
+    selected_images = sorted(random.Random(seed).sample(images, min(n, len(images))))
+    if dst.exists():
+        shutil.rmtree(dst)
     (dst / "images").mkdir(parents=True)
     (dst / "labels").mkdir()
-    for img in pick:
-        (dst / "images" / img.name).symlink_to(img.resolve())
-        lbl = src / "labels" / "train" / f"{img.stem}.txt"
-        if lbl.exists():
-            (dst / "labels" / lbl.name).symlink_to(lbl.resolve())
+    for image in selected_images:
+        (dst / "images" / image.name).symlink_to(image.resolve())
+        label = src / "labels" / "train" / f"{image.stem}.txt"
+        if label.exists():
+            (dst / "labels" / label.name).symlink_to(label.resolve())
     return dst
 
 
@@ -36,37 +43,47 @@ def _subset_images(trainer) -> Path:
 
 
 def on_fit_epoch_end(trainer) -> None:
+    """Reuse the validator on the fixed train subset, then restore it for validation."""
     from ultralytics.data import build_dataloader
     from ultralytics.utils import LOCAL_RANK, RANK
     from ultralytics.utils.callbacks import tensorboard as tb
     from ultralytics.utils.torch_utils import torch_distributed_zero_first
 
-    v = trainer.validator
+    validator = trainer.validator
     # final_eval re-fires this hook after validating best.pt (validator.training=False) -> skip on all ranks
-    if v is None or not v.training:
+    if validator is None or not validator.training:
         return
     if getattr(trainer, "_train_eval_loader", None) is None:
-        bs = trainer.test_loader.batch_size
+        batch_size = trainer.test_loader.batch_size
         with torch_distributed_zero_first(LOCAL_RANK):
             subset = _subset_images(trainer)
-            ds = trainer.build_dataset(str(subset), mode="val", batch=bs)
-        trainer._train_eval_loader = build_dataloader(ds, bs, workers=2, shuffle=False, rank=LOCAL_RANK,
-                                                      device=trainer.device)
-    saved = v.dataloader, v.args.plots
-    v.dataloader, v.args.plots = trainer._train_eval_loader, False
+            dataset = trainer.build_dataset(str(subset), mode="val", batch=batch_size)
+        trainer._train_eval_loader = build_dataloader(
+            dataset, batch_size, workers=2, shuffle=False, rank=LOCAL_RANK, device=trainer.device
+        )
+    validation_loader = validator.dataloader
+    validation_plots = validator.args.plots
+    validator.dataloader = trainer._train_eval_loader
+    validator.args.plots = False
     try:
-        stats = v(trainer)
+        stats = validator(trainer)
     finally:
-        v.dataloader, v.args.plots = saved
+        validator.dataloader = validation_loader
+        validator.args.plots = validation_plots
     if RANK not in {-1, 0}:
         return
     epoch = trainer.epoch + 1
-    row = {k.split("/", 1)[-1]: float(x) for k, x in stats.items() if k != "fitness"}   # precision(B), box_loss...
-    csv = Path(trainer.save_dir) / CSV
-    pd.DataFrame([{"epoch": epoch, **row}]).to_csv(csv, mode="a", header=not csv.exists(), index=False)
+    metrics = {}
+    for name, value in stats.items():
+        if name != "fitness":
+            metrics[name.split("/", 1)[-1]] = float(value)
+    csv_path = Path(trainer.save_dir) / CSV
+    pd.DataFrame([{"epoch": epoch, **metrics}]).to_csv(
+        csv_path, mode="a", header=not csv_path.exists(), index=False
+    )
     if tb.WRITER:
-        for k, x in row.items():
-            tb.WRITER.add_scalar(f"train_eval/{k}", x, epoch)
+        for name, value in metrics.items():
+            tb.WRITER.add_scalar(f"train_eval/{name}", value, epoch)
 
 
 def register(model) -> None:

@@ -1,4 +1,6 @@
+"""Pretrained checkpoints and the zero-shot (COCO 'car' class) predictor."""
 import os
+from functools import cache
 from pathlib import Path
 
 from ultralytics import YOLO
@@ -6,8 +8,9 @@ from ultralytics import YOLO
 from .config import CAR_COCO_ID, CONF, DEFAULT_WEIGHTS, IMGSZ, MAX_DET
 
 
-#TODO
 def ensure_weights(weights=DEFAULT_WEIGHTS) -> str:
+    """Return ``weights`` as a path, downloading an official checkpoint first if it is missing
+    (``yolo11n.pt`` from the Hugging Face hub with ``HF_TOKEN`` from ``.env``, others from Ultralytics' GitHub)."""
     path = Path(weights)
     if path.exists():
         return str(path)
@@ -28,16 +31,13 @@ def ensure_weights(weights=DEFAULT_WEIGHTS) -> str:
     return str(path)
 
 
-_models = {}
-
-def load_model(weights=DEFAULT_WEIGHTS):
-    if str(weights) not in _models:
-        _models[str(weights)] = YOLO(ensure_weights(weights))
-    return _models[str(weights)]
+@cache
+def load_model(weights=DEFAULT_WEIGHTS) -> YOLO:
+    """The model for ``weights``, loaded once per process."""
+    return YOLO(ensure_weights(weights))
 
 
-# TODO
-def predict_cars(model, source):
+def predict_cars(model, source, device=0):
     """COCO 'car' detections of the un-fine-tuned model on one image."""
     return model.predict(source, classes=[CAR_COCO_ID], imgsz=IMGSZ, conf=CONF, max_det=MAX_DET,
-                         verbose=False, device=0)[0]
+                         verbose=False, device=device)[0]

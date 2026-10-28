@@ -1,9 +1,10 @@
+"""Drawing boxes on images."""
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 
 
 def show_image_with_boxes(img, boxes_xyxy, title="", color="lime", ax=None):
-    """Show img with (x1, y1, x2, y2) boxes"""
+    """Draw pixel (x1, y1, x2, y2) boxes on ``img``; shows its own figure unless ``ax`` is given."""
     own_fig = ax is None
     if own_fig:
         _, ax = plt.subplots(figsize=(12, 7))
