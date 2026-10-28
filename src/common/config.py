@@ -13,6 +13,7 @@ TRAIN_EVAL_DIR = YOLO_DIR / "train_eval"       # fixed train subset scored every
 TRAIN_EVAL_IMAGES = 200
 
 DEFAULT_WEIGHTS = "models/yolo11n.pt"
+YOLO26_WEIGHTS = "models/yolo26n.pt"   # NMS-free head: evaluate with nms=False
 MODEL_CFG = "yolo11n.yaml"
 
 IMG_W, IMG_H = 1280, 720   # native resolution
@@ -22,6 +23,6 @@ MAX_DET = 1000             # Ultralytics default is 300 < densest image (331 car
 
 DEVICES = (0, 1)           # 2x RTX 4080 SUPER -> DDP
 BATCH_PER_GPU = 16         # ~11 GB VRAM per GPU at imgsz 1280
-# PATIENCE = 0 disables early stopping: the run uses the whole lr decay and the last `close_mosaic`
-# (10) epochs without mosaic; best.pt is still the epoch with the best val fitness.
-EPOCHS, PATIENCE, SEED = 100, 0, 42
+# PATIENCE = 5 is the baseline (stop after 5 epochs without a better val fitness). Phase 3 runs pass
+# patience=0 for the full schedule: the whole lr decay and the last `close_mosaic` (10) epochs without mosaic.
+EPOCHS, PATIENCE, SEED = 100, 5, 42

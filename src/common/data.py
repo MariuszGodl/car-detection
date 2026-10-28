@@ -28,8 +28,28 @@ def gt_count(img_id) -> int:
     return len(read_annotation(ANN / f"{img_id}.txt"))
 
 
-def split_train_val(train_ids, val_fraction=0.1, seed=42):
-    """Deterministic train/val carve of the official train ids (used by Phase 1 and 2)."""
+def lot_of(img_id) -> str:
+    """Parking lot of a combined-devkit id: ``carpk__20160331_NTU_00001`` -> ``carpk:NTU``.
+    PUCPR+ is one fixed camera over one lot, so every PUCPR+ id is lot ``pucpr``."""
+    source, _, rest = img_id.partition("__")
+    parts = rest.split("_")
+    return f"carpk:{parts[1]}" if source == "carpk" and len(parts) >= 3 else source
+
+
+def split_train_val(train_ids, val_fraction=0.1, seed=42, val_lots=()):
+    """Deterministic train/val carve of the official train ids (used by Phase 1, 2 and 3).
+
+    Default: a random ``val_fraction`` of all ids. With ``val_lots`` (e.g. ``["carpk:NTU"]``) every image of
+    those lots goes to val, so val is a lot the model never trains on - like the TPZ test lot. The other
+    CARPK lots go to train whole; lots that cannot be held out whole (PUCPR+, one camera) are still carved
+    at random by ``val_fraction``.
+    """
+    if val_lots:
+        held = {i for i in train_ids if lot_of(i) in set(val_lots)}
+        assert held, f"no train ids in lots {val_lots}"
+        single = [i for i in train_ids if i not in held and not lot_of(i).startswith("carpk:")]
+        val = held | set(split_train_val(single, val_fraction, seed)[1] if single else [])
+        return sorted(set(train_ids) - val), sorted(val)
     ids = sorted(train_ids)
     random.Random(seed).shuffle(ids)
     n_val = max(1, round(len(ids) * val_fraction))

@@ -36,10 +36,13 @@ def _write_split(devkit, out_dir, split, ids) -> None:
     print(f"{split:5s}: {len(ids):4d} images | {n_boxes:6d} boxes")
 
 
-def build_dataset(devkit=DATA, out_dir=YOLO_DIR, val_fraction=0.1, seed=42) -> Path:
-    """Write the YOLO dataset under ``out_dir`` and return its ``carpk.yaml``."""
+def build_dataset(devkit=DATA, out_dir=YOLO_DIR, val_fraction=0.1, seed=42, val_lots=()) -> Path:
+    """Write the YOLO dataset under ``out_dir`` and return its ``carpk.yaml``.
+
+    ``val_lots`` holds whole parking lots out as val (see ``common.data.split_train_val``); build such a
+    dataset into its own ``out_dir`` so the default random-val dataset stays as it is."""
     devkit, out_dir = Path(devkit), Path(out_dir)
-    train_ids, val_ids = split_train_val(load_split_ids("train", devkit / "ImageSets"), val_fraction, seed)
+    train_ids, val_ids = split_train_val(load_split_ids("train", devkit / "ImageSets"), val_fraction, seed, val_lots)
     test_ids = load_split_ids("test", devkit / "ImageSets")
     assert set(test_ids).isdisjoint(train_ids + val_ids), "test images leaked into train/val"
     for split, ids in (("train", train_ids), ("val", val_ids), ("test", test_ids)):

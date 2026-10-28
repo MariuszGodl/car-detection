@@ -1,4 +1,4 @@
-"""YOLO11n loading (downloaded from Hugging Face if missing) and zero-shot car prediction."""
+"""Model loading (official checkpoints downloaded if missing) and zero-shot car prediction."""
 import os
 from pathlib import Path
 
@@ -8,16 +8,27 @@ from .config import CAR_COCO_ID, CONF, DEFAULT_WEIGHTS, IMGSZ, MAX_DET
 
 
 def ensure_weights(weights=DEFAULT_WEIGHTS) -> str:
-    """Return ``weights``, downloading YOLO11n from Hugging Face (``HF_TOKEN`` in ``.env``) if missing."""
-    if not Path(weights).exists():
+    """Return ``weights``; if the file is missing, download the official checkpoint of that name:
+    ``yolo11n.pt`` from Hugging Face (``HF_TOKEN`` in ``.env``), any other (e.g. ``yolo26n.pt``) from the
+    Ultralytics release assets. Anything else (a run's ``best.pt``) must already exist."""
+    path = Path(weights)
+    if path.exists():
+        return str(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.name == "yolo11n.pt":
         from dotenv import load_dotenv
         from huggingface_hub import hf_hub_download
 
         load_dotenv()
         cached = hf_hub_download("Ultralytics/YOLO11", "yolo11n.pt", token=os.getenv("HF_TOKEN"))
-        Path(weights).parent.mkdir(parents=True, exist_ok=True)
-        Path(weights).write_bytes(Path(cached).read_bytes())
-    return str(weights)
+        path.write_bytes(Path(cached).read_bytes())
+    else:
+        from ultralytics.utils.downloads import GITHUB_ASSETS_NAMES, attempt_download_asset
+
+        if path.name not in GITHUB_ASSETS_NAMES:
+            raise FileNotFoundError(f"{path} does not exist and is not an official Ultralytics checkpoint")
+        attempt_download_asset(path)
+    return str(path)
 
 
 _models = {}

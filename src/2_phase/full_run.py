@@ -12,15 +12,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common import train_eval
 from common.boxes import read_yolo_labels
-from common.config import CONF, DATA_YAML, IMGSZ, MAX_DET, ROOT, RUNS_DIR, YOLO_DIR
-from common.training import read_results
+from common.config import CONF, DATA_YAML, IMGSZ, MAX_DET, ROOT, RUNS_DIR
+from common.training import loss_columns, read_results
 
 # Only the check runs - never the whole runs/ dir, which also holds the real training runs (runs/train/*).
 OLD_OUTPUTS = (RUNS_DIR / "checks", RUNS_DIR / "sanity", RUNS_DIR / "detect",   # 1 GPU / DDP / resume, overfit, COCO8
                ROOT / "datasets" / "coco8",         # auto-downloaded by the accidental COCO8 run
                ROOT / "datasets" / "yolo_sanity")   # 4-image overfit set from section 6
 METRICS = ["precision(B)", "recall(B)", "mAP50(B)", "mAP50-95(B)"]
-LOSSES = ["box_loss", "cls_loss", "dfl_loss"]
 TRAIN, VAL, TRAIN_AUG = "tab:blue", "tab:orange", "lightgrey"
 
 
@@ -49,7 +48,8 @@ def plot_curves(run_dir):
         ax.plot(tr["epoch"], tr[m], color=TRAIN, label="train subset")
         ax.plot(val["epoch"], val[f"metrics/{m}"], color=VAL, label="val")
         ax.set(title=m, xlabel="epoch", ylim=(0, 1))
-    for ax, l in zip(axes[1], LOSSES):
+    losses = [c.split("/", 1)[1] for c in loss_columns(val)]   # box, cls + dfl (YOLO11) or l1 (YOLO26)
+    for ax, l in zip(axes[1], losses):
         ax.plot(val["epoch"], val[f"train/{l}"], color=TRAIN_AUG, label="train (augmented, during training)")
         ax.plot(tr["epoch"], tr[l], color=TRAIN, label="train subset (no augmentation)")
         ax.plot(val["epoch"], val[f"val/{l}"], color=VAL, label="val")
@@ -68,7 +68,7 @@ def plot_curves(run_dir):
     return fig
 
 
-def evaluate_splits(weights, splits=("train", "val", "test"), device=0, batch=16) -> pd.DataFrame:
+def evaluate_splits(weights, splits=("train", "val", "test"), device=0, batch=16, data=DATA_YAML) -> pd.DataFrame:
     """Score ``weights`` on every split; plots / PR curves go to ``<run>/eval_<split>/``."""
     from ultralytics import YOLO
 
@@ -76,10 +76,10 @@ def evaluate_splits(weights, splits=("train", "val", "test"), device=0, batch=16
     run_dir = weights.parents[1]
     rows = {}
     for split in splits:
-        m = YOLO(str(weights)).val(data=str(ROOT / DATA_YAML), split=split, imgsz=IMGSZ, batch=batch,
+        m = YOLO(str(weights)).val(data=str(ROOT / data), split=split, imgsz=IMGSZ, batch=batch,
                                    device=device, max_det=MAX_DET, project=str(run_dir), name=f"eval_{split}", exist_ok=True,
                                    verbose=False)
-        rows[split] = {"images": len(list((ROOT / YOLO_DIR / "images" / split).iterdir())),
+        rows[split] = {"images": len(list(((ROOT / data).parent / "images" / split).iterdir())),
                        **{k: m.results_dict[f"metrics/{k}"] for k in METRICS}}
     df = pd.DataFrame(rows).T
     df["images"] = df["images"].astype(int)
@@ -98,13 +98,14 @@ def plot_splits(df):
     return ax
 
 
-def show_predictions(weights, n=10, split="test", seed=0, conf=CONF, device=0, cols=2) -> pd.DataFrame:
+def show_predictions(weights, n=10, split="test", seed=0, conf=CONF, device=0, cols=2, data=DATA_YAML) -> pd.DataFrame:
     """Load ``weights`` from disk, predict ``n`` random ``split`` images and show them with
     predicted vs ground-truth car counts (count = number of boxes)."""
     from ultralytics import YOLO
 
     model = YOLO(str(weights))
-    imgs = sorted((ROOT / YOLO_DIR / "images" / split).iterdir())
+    ds_dir = (ROOT / data).parent
+    imgs = sorted((ds_dir / "images" / split).iterdir())
     pick = sorted(random.Random(seed).sample(imgs, min(n, len(imgs))))
     results = model.predict([str(p) for p in pick], imgsz=IMGSZ, conf=conf, max_det=MAX_DET, device=device,
                             verbose=False)
@@ -112,7 +113,7 @@ def show_predictions(weights, n=10, split="test", seed=0, conf=CONF, device=0, c
     fig, axes = plt.subplots(nrows, cols, figsize=(8 * cols, 4.6 * nrows), squeeze=False)
     rows = []
     for ax, img, r in zip(axes.flat, pick, results):
-        gt = len(read_yolo_labels(ROOT / YOLO_DIR / "labels" / split / f"{img.stem}.txt"))
+        gt = len(read_yolo_labels(ds_dir / "labels" / split / f"{img.stem}.txt"))
         pred = len(r.boxes)
         rows.append({"image": img.stem, "gt": gt, "pred": pred, "error": pred - gt})
         ax.imshow(r.plot(labels=False, conf=False, line_width=1)[..., ::-1])   # BGR -> RGB

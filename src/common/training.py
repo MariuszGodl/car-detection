@@ -84,9 +84,31 @@ def launch(args=None, weights=DEFAULT_WEIGHTS, resume_from=None, stop_after_epoc
     return run_dir
 
 
+def finished(run_dir) -> bool:
+    """Whether a run ended normally (``run_logging`` writes ``# finished`` to its ``train_log.txt``)."""
+    log = Path(run_dir) / "train_log.txt"
+    return log.exists() and "# finished" in log.read_text()
+
+
+def launch_once(args, weights=DEFAULT_WEIGHTS, **kwargs) -> Path:
+    """:func:`launch`, unless the run named in ``args`` already finished - so a notebook can be re-run top to
+    bottom without retraining. An unfinished run starts again; continue it with ``launch(resume_from=...)``."""
+    run_dir = Path(args["project"]) / args["name"]
+    if finished(run_dir):
+        print(f"{args['name']}: already trained -> {run_dir}")
+        return run_dir
+    return launch(args, weights, **kwargs)
+
+
+def loss_columns(df, prefix="train/") -> list:
+    """The ``<prefix>*_loss`` columns a run logged, in logging order."""
+    return [c for c in df.columns if c.startswith(prefix) and c.endswith("_loss") and c != "train/total_loss"]
+
+
 def read_results(run_dir) -> pd.DataFrame:
-    """A run's ``results.csv`` plus a ``train/total_loss`` column."""
+    """A run's ``results.csv`` plus a ``train/total_loss`` column (sum of the logged train losses: box, cls and
+    DFL for YOLO11; box, cls and L1 for YOLO26, which has no DFL)."""
     df = pd.read_csv(Path(run_dir) / "results.csv")
     df.columns = df.columns.str.strip()
-    df["train/total_loss"] = df[LOSS_COLS].sum(axis=1)
+    df["train/total_loss"] = df[loss_columns(df)].sum(axis=1)
     return df

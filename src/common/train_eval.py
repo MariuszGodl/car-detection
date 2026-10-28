@@ -19,14 +19,16 @@ from pathlib import Path
 
 import pandas as pd
 
-from .config import ROOT, SEED, TRAIN_EVAL_DIR, TRAIN_EVAL_IMAGES, YOLO_DIR
+from .config import ROOT, SEED, TRAIN_EVAL_IMAGES, YOLO_DIR
 
 CSV = "train_eval.csv"
 
 
-def make_subset(n=TRAIN_EVAL_IMAGES, seed=SEED, src=YOLO_DIR, dst=TRAIN_EVAL_DIR) -> Path:
-    """Symlink a fixed random sample of ``n`` train images (+ labels) into ``dst``."""
-    src, dst = ROOT / src, ROOT / dst
+def make_subset(n=TRAIN_EVAL_IMAGES, seed=SEED, src=YOLO_DIR, dst=None) -> Path:
+    """Symlink a fixed random sample of ``n`` train images (+ labels) of dataset ``src`` into
+    ``dst`` (default ``<src>/train_eval``, where :func:`on_fit_epoch_end` looks for it)."""
+    src = ROOT / src
+    dst = ROOT / dst if dst else src / "train_eval"
     imgs = sorted((src / "images" / "train").iterdir())
     pick = sorted(random.Random(seed).sample(imgs, min(n, len(imgs))))
     shutil.rmtree(dst, ignore_errors=True)
@@ -38,6 +40,14 @@ def make_subset(n=TRAIN_EVAL_IMAGES, seed=SEED, src=YOLO_DIR, dst=TRAIN_EVAL_DIR
         if lbl.exists():
             (dst / "labels" / lbl.name).symlink_to(lbl.resolve())
     return dst
+
+
+def _subset_images(trainer) -> Path:
+    """``<dataset dir>/train_eval/images`` of the dataset this run trains on."""
+    path = (ROOT / trainer.args.data).resolve().parent / "train_eval" / "images"
+    if not path.is_dir():
+        raise FileNotFoundError(f"{path} missing - run train_eval.make_subset(src=<dataset dir>) first")
+    return path
 
 
 def on_fit_epoch_end(trainer) -> None:
@@ -53,7 +63,8 @@ def on_fit_epoch_end(trainer) -> None:
     if getattr(trainer, "_train_eval_loader", None) is None:
         bs = trainer.test_loader.batch_size
         with torch_distributed_zero_first(LOCAL_RANK):
-            ds = trainer.build_dataset(str(ROOT / TRAIN_EVAL_DIR / "images"), mode="val", batch=bs)
+            subset = _subset_images(trainer)
+            ds = trainer.build_dataset(str(subset), mode="val", batch=bs)
         trainer._train_eval_loader = build_dataloader(ds, bs, workers=2, shuffle=False, rank=LOCAL_RANK,
                                                       device=trainer.device)
     saved = v.dataloader, v.args.plots
