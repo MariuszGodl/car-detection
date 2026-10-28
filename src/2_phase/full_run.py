@@ -1,4 +1,5 @@
-"""Full training run: clean slate, train vs val curves, final train / val / test evaluation, demo inference."""
+"""Run helpers: clearing the check runs, train vs val curves, train / val / test evaluation and inference
+(a grid of random images, or one image or photo)."""
 import math
 import random
 import shutil
@@ -13,12 +14,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common import train_eval
 from common.boxes import read_yolo_labels
 from common.config import CONF, DATA_YAML, IMGSZ, MAX_DET, ROOT, RUNS_DIR
+from common.data import dataset_dir
 from common.training import loss_columns, read_results
 
-# Only the check runs - never the whole runs/ dir, which also holds the real training runs (runs/train/*).
-OLD_OUTPUTS = (RUNS_DIR / "checks", RUNS_DIR / "sanity", RUNS_DIR / "detect",   # 1 GPU / DDP / resume, overfit, COCO8
-               ROOT / "datasets" / "coco8",         # auto-downloaded by the accidental COCO8 run
-               ROOT / "datasets" / "yolo_sanity")   # 4-image overfit set from section 6
+# Outputs of the Phase 2 checks only - never runs/train/, which holds the real training runs.
+OLD_OUTPUTS = (RUNS_DIR / "checks",                 # 1 GPU vs DDP, interrupt + resume (section 7)
+               RUNS_DIR / "sanity",                 # overfit-one-batch run (section 6)
+               ROOT / "datasets" / "yolo_sanity",   # its 4-image dataset
+               RUNS_DIR / "detect",                 # Ultralytics' default project (a train() without project=)
+               ROOT / "datasets" / "coco8")         # downloaded when train() runs without data=
 METRICS = ["precision(B)", "recall(B)", "mAP50(B)", "mAP50-95(B)"]
 TRAIN, VAL, TRAIN_AUG = "tab:blue", "tab:orange", "lightgrey"
 
@@ -49,11 +53,11 @@ def plot_curves(run_dir):
         ax.plot(val["epoch"], val[f"metrics/{m}"], color=VAL, label="val")
         ax.set(title=m, xlabel="epoch", ylim=(0, 1))
     losses = [c.split("/", 1)[1] for c in loss_columns(val)]   # box, cls + dfl (YOLO11) or l1 (YOLO26)
-    for ax, l in zip(axes[1], losses):
-        ax.plot(val["epoch"], val[f"train/{l}"], color=TRAIN_AUG, label="train (augmented, during training)")
-        ax.plot(tr["epoch"], tr[l], color=TRAIN, label="train subset (no augmentation)")
-        ax.plot(val["epoch"], val[f"val/{l}"], color=VAL, label="val")
-        ax.set(title=l, xlabel="epoch")
+    for ax, loss in zip(axes[1], losses):
+        ax.plot(val["epoch"], val[f"train/{loss}"], color=TRAIN_AUG, label="train (augmented, during training)")
+        ax.plot(tr["epoch"], tr[loss], color=TRAIN, label="train subset (no augmentation)")
+        ax.plot(val["epoch"], val[f"val/{loss}"], color=VAL, label="val")
+        ax.set(title=loss, xlabel="epoch")
     gap = tr.set_index("epoch")["mAP50-95(B)"] - val.set_index("epoch")["metrics/mAP50-95(B)"]
     axes[1, 3].plot(gap.index, gap.values, color="tab:red")
     axes[1, 3].axhline(0, color="grey", lw=0.8)
@@ -68,7 +72,8 @@ def plot_curves(run_dir):
     return fig
 
 
-def evaluate_splits(weights, splits=("train", "val", "test"), device=0, batch=16, data=DATA_YAML) -> pd.DataFrame:
+def evaluate_splits(weights, splits=("train", "val", "test"), device=0, batch=16,
+                    data=DATA_YAML) -> pd.DataFrame:
     """Score ``weights`` on every split; plots / PR curves go to ``<run>/eval_<split>/``."""
     from ultralytics import YOLO
 
@@ -76,10 +81,10 @@ def evaluate_splits(weights, splits=("train", "val", "test"), device=0, batch=16
     run_dir = weights.parents[1]
     rows = {}
     for split in splits:
-        m = YOLO(str(weights)).val(data=str(ROOT / data), split=split, imgsz=IMGSZ, batch=batch,
-                                   device=device, max_det=MAX_DET, project=str(run_dir), name=f"eval_{split}", exist_ok=True,
+        m = YOLO(str(weights)).val(data=str(ROOT / data), split=split, imgsz=IMGSZ, batch=batch, device=device,
+                                   max_det=MAX_DET, project=str(run_dir), name=f"eval_{split}", exist_ok=True,
                                    verbose=False)
-        rows[split] = {"images": len(list(((ROOT / data).parent / "images" / split).iterdir())),
+        rows[split] = {"images": len(list((dataset_dir(data) / "images" / split).iterdir())),
                        **{k: m.results_dict[f"metrics/{k}"] for k in METRICS}}
     df = pd.DataFrame(rows).T
     df["images"] = df["images"].astype(int)
@@ -98,13 +103,14 @@ def plot_splits(df):
     return ax
 
 
-def show_predictions(weights, n=10, split="test", seed=0, conf=CONF, device=0, cols=2, data=DATA_YAML) -> pd.DataFrame:
+def show_predictions(weights, n=10, split="test", seed=0, conf=CONF, device=0, cols=2,
+                     data=DATA_YAML) -> pd.DataFrame:
     """Load ``weights`` from disk, predict ``n`` random ``split`` images and show them with
     predicted vs ground-truth car counts (count = number of boxes)."""
     from ultralytics import YOLO
 
     model = YOLO(str(weights))
-    ds_dir = (ROOT / data).parent
+    ds_dir = dataset_dir(data)
     imgs = sorted((ds_dir / "images" / split).iterdir())
     pick = sorted(random.Random(seed).sample(imgs, min(n, len(imgs))))
     results = model.predict([str(p) for p in pick], imgsz=IMGSZ, conf=conf, max_det=MAX_DET, device=device,
@@ -127,3 +133,31 @@ def show_predictions(weights, n=10, split="test", seed=0, conf=CONF, device=0, c
     print(f"count MAE {df['error'].abs().mean():.2f} | RMSE {(df['error'] ** 2).mean() ** 0.5:.2f} "
           f"over {len(df)} images")
     return df
+
+
+def show_prediction(weights, image=None, split="test", conf=CONF, nms=None, device=0, seed=None,
+                    data=DATA_YAML):
+    """Predict one image with ``weights`` and show the boxes and the car count.
+
+    ``image``: path to any photo; ``None`` picks a random ``split`` image of the dataset ``data``. If the image
+    has a label file there, the true count and the error are shown too. ``nms=False`` uses YOLO26's
+    NMS-free head; ``seed`` makes the random pick repeatable. Returns the Ultralytics result."""
+    from ultralytics import YOLO
+
+    if image is None:
+        image = random.Random(seed).choice(sorted((dataset_dir(data) / "images" / split).iterdir()))
+    image = Path(image).expanduser()
+    r = YOLO(str(weights)).predict(str(image), imgsz=IMGSZ, conf=conf, max_det=MAX_DET, nms=nms, device=device,
+                                   verbose=False)[0]
+    pred = len(r.boxes)
+    title = f"{image.name}\npredicted {pred} cars (conf ≥ {conf})"
+    label = image.parent.parent.parent / "labels" / image.parent.name / f"{image.stem}.txt"
+    if label.exists():
+        gt = len(read_yolo_labels(label))
+        title += f"  |  true {gt}  |  error {pred - gt:+d}"
+    plt.figure(figsize=(14, 8))
+    plt.imshow(r.plot(labels=False, conf=False, line_width=1)[..., ::-1])   # BGR -> RGB
+    plt.title(title)
+    plt.axis("off")
+    plt.show()
+    return r

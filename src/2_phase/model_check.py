@@ -30,7 +30,8 @@ def describe(model) -> dict:
     heads = [m for m in model.modules() if isinstance(m, Detect)]
     args = {**DEFAULT_CFG_DICT, **(model.args if isinstance(model.args, dict) else vars(model.args))}
     return {"n_detect_heads": len(heads), "nc": heads[-1].nc, "outputs_per_anchor": heads[-1].no,
-            "strides": [int(s) for s in heads[-1].stride], "params_M": round(sum(p.numel() for p in model.parameters()) / 1e6, 2),
+            "strides": [int(s) for s in heads[-1].stride],
+            "params_M": round(sum(p.numel() for p in model.parameters()) / 1e6, 2),
             "loss": type(model.init_criterion()).__name__, "loss_gains": {k: args[k] for k in ("box", "cls", "dfl")}}
 
 
@@ -42,7 +43,8 @@ def compare_with_coco() -> dict:
     reinit = [k for k, v in car_sd.items() if k not in coco_sd or coco_sd[k].shape != v.shape]
     for name, d in info.items():
         print(f"{name:4s}: {d}")
-    print(f"transferred {len(car_sd) - len(reinit)}/{len(car_sd)} tensors from COCO; re-initialised (class-logit convs):")
+    print(f"transferred {len(car_sd) - len(reinit)}/{len(car_sd)} tensors from COCO; "
+          "re-initialised (class-logit convs):")
     for k in reinit:
         print("   ", k, tuple(car_sd[k].shape))
     assert info["car"]["n_detect_heads"] == 1 and info["car"]["nc"] == 1

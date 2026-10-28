@@ -1,9 +1,3 @@
-"""Merge the CARPK and PUCPR+ devkits into one combined devkit (Phase 1, section 3).
-
-Both share the same layout and annotation format, so ids are just prefixed with
-``carpk__`` / ``pucpr__`` and the authors' official train/test splits are kept.
-Degenerate boxes (zero width or height) are dropped here, once, for every later step.
-"""
 import shutil
 import sys
 from pathlib import Path

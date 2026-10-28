@@ -65,7 +65,7 @@ def on_fit_epoch_end(trainer) -> None:
 
 
 def on_train_end(trainer) -> None:
-    metrics = {k: float(v) for k, v in trainer.metrics.items()}   # best.pt, from final_eval
+    metrics = {k: float(v) for k, v in trainer.metrics.items()}
     _log(trainer, f"final_best {_fmt(metrics)}")
     _log(trainer, f"# finished {time.strftime('%Y-%m-%d %H:%M:%S')} "
                   f"best_epoch={trainer.stopper.best_epoch} best={trainer.best} last={trainer.last}")
@@ -79,5 +79,4 @@ def register_callbacks(model) -> None:
 
 
 def grep_log(run_dir, pattern="") -> list:
-    """Lines of a run's ``train_log.txt`` containing ``pattern``."""
     return [ln for ln in (Path(run_dir) / TXT_LOG).read_text().splitlines() if pattern in ln]

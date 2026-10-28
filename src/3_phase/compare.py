@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common.boxes import read_yolo_labels
 from common.config import CONF, DATA_YAML, IMGSZ, MAX_DET, ROOT, RUNS_DIR
-from common.data import lot_of
+from common.data import dataset_dir, lot_of
 
 DET = ["precision(B)", "recall(B)", "mAP50(B)", "mAP50-95(B)"]
 SWEEP = np.round(np.arange(0.10, 0.701, 0.025), 3)
@@ -40,11 +40,6 @@ MIN_CONF = 0.05
 
 def source_of(stem) -> str:
     return stem.split("__", 1)[0]
-
-
-def dataset_dir(data=DATA_YAML) -> Path:
-    """Directory of a dataset yaml (``images/`` and ``labels/`` live next to it)."""
-    return (ROOT / data).resolve().parent
 
 
 def lots_per_split(data=DATA_YAML, splits=("train", "val", "test")) -> pd.DataFrame:
@@ -102,8 +97,8 @@ def detection_metrics(weights, label, split="test", device=0, batch=16, data=DAT
     """Ultralytics P / R / mAP on ``split``; plots go to ``runs/compare/<label>_<split>/``."""
     from ultralytics import YOLO
 
-    m = YOLO(str(weights)).val(data=str((ROOT / data).resolve()), split=split, imgsz=IMGSZ,
-                               batch=batch, device=device, max_det=MAX_DET, nms=nms, project=str(RUNS_DIR / "compare"),
+    m = YOLO(str(weights)).val(data=str((ROOT / data).resolve()), split=split, imgsz=IMGSZ, batch=batch,
+                               device=device, max_det=MAX_DET, nms=nms, project=str(RUNS_DIR / "compare"),
                                name=f"{label}_{split}", exist_ok=True, verbose=False)
     return {k: m.results_dict[f"metrics/{k}"] for k in DET}
 
@@ -157,7 +152,8 @@ def compare(models, device=0, batch=16, test_data=DATA_YAML) -> dict:
             "per_image": per_image, "conf_source": conf_source}
 
 
-def nms_check(weights, split="test", ious=(0.5, 0.7, 0.9), conf=CONF, device=0, batch=16, data=DATA_YAML) -> pd.DataFrame:
+def nms_check(weights, split="test", ious=(0.5, 0.7, 0.9), conf=CONF, device=0, batch=16,
+              data=DATA_YAML) -> pd.DataFrame:
     """Count metrics at a fixed ``conf`` for several NMS IoU thresholds. If raising ``iou`` (= suppressing
     less) raises the count and lowers the error, NMS is removing real, heavily overlapping cars."""
     rows = {}

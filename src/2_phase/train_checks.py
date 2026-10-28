@@ -1,11 +1,10 @@
-"""Training-infrastructure checks: 1 GPU vs DDP, interrupt + resume, TensorBoard logging."""
+"""Training-infrastructure checks: 1 GPU vs DDP, interrupt + resume."""
 import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
 import torch
-from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -19,7 +18,8 @@ COLS = LOSS_COLS + ["train/total_loss"]
 def ddp_vs_single(global_batch=16) -> dict:
     """Same short schedule, seed and global batch on 1 GPU and on 2 GPUs (DDP)."""
     runs = {"1 GPU": launch(train_args(name="single_gpu", devices=[0], batch_per_gpu=global_batch, **SHORT_RUN)),
-            "2 GPU DDP": launch(train_args(name="ddp_2gpu", devices=[0, 1], batch_per_gpu=global_batch // 2, **SHORT_RUN))}
+            "2 GPU DDP": launch(train_args(name="ddp_2gpu", devices=[0, 1], batch_per_gpu=global_batch // 2,
+                                           **SHORT_RUN))}
     table = pd.concat({k: read_results(d).set_index("epoch")[COLS + ["time"]] for k, d in runs.items()}, axis=1)
     t1, t2 = table[("1 GPU", "time")].iloc[-1], table[("2 GPU DDP", "time")].iloc[-1]
     loss1, loss2 = table[("1 GPU", "train/total_loss")], table[("2 GPU DDP", "train/total_loss")]
@@ -60,14 +60,3 @@ def interrupt_and_resume(epochs=4, stop_after=2) -> dict:
     assert epochs_after == list(range(1, epochs + 1)), f"epochs not continuous: {epochs_after}"
     return {"run_dir": run_dir, "before": before, "after": after,
             "epochs_before": epochs_before, "epochs_after": epochs_after}
-
-
-def tensorboard_summary(run_dir) -> dict:
-    """Scalar tags (with #points) and whether HParams were logged for ``run_dir``."""
-    scalars, hparams = {}, False
-    for ev in sorted(Path(run_dir).rglob("events.out.tfevents.*")):
-        acc = EventAccumulator(str(ev)).Reload()
-        for tag in acc.Tags()["scalars"]:
-            scalars[tag] = scalars.get(tag, 0) + len(acc.Scalars(tag))
-        hparams |= "_hparams_/session_start_info" in acc.summary_metadata
-    return {"scalars": scalars, "hparams_logged": hparams}

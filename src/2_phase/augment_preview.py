@@ -53,8 +53,8 @@ def show_augmented(image_path, seed=0, warmup=64, **hyp_overrides):
     fig, axes = plt.subplots(1, 3, figsize=(21, 7.5))
     img = Image.open(image_path)
     gt = [yolo_to_xyxy(*b, *img.size) for b in ds.labels[idx]["bboxes"].tolist()]   # normalised cx cy w h
-    show_image_with_boxes(img, gt, title=f"BEFORE: original photo\n{img.size[0]}x{img.size[1]} - {len(gt)} labelled cars",
-                          ax=axes[0])
+    show_image_with_boxes(img, gt, ax=axes[0],
+                          title=f"BEFORE: original photo\n{img.size[0]}x{img.size[1]} - {len(gt)} labelled cars")
     _show_sample(ds, idx, axes[1], "AFTER #1: main epochs (mosaic + affine + HSV + flip)")
     ds.close_mosaic(hyp=get_cfg(overrides=hyp_overrides))   # what the trainer does for the last close_mosaic epochs
     _show_sample(ds, idx, axes[2], "AFTER #2: last 10 epochs (affine + HSV + flip, no mosaic)")

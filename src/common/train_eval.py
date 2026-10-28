@@ -1,18 +1,3 @@
-"""Per-epoch accuracy on a fixed subset of the *training* images.
-
-During training Ultralytics only scores the val split, so there is no train-set precision / recall /
-mAP to compare against (the train losses are measured on augmented images). This module adds it:
-
-* :func:`make_subset` builds ``datasets/yolo/train_eval/`` - symlinks to N train images + labels
-  (own ``labels.cache``, so the train cache is untouched),
-* :func:`on_fit_epoch_end` scores that subset after every epoch with the trainer's own validator
-  (EMA weights, no augmentation - exactly like val) and writes ``<run>/train_eval.csv`` and
-  TensorBoard scalars ``train_eval/*``.
-
-Enable with ``train_args(..., train_eval=True)``; a resumed run re-enables it when
-``train_eval.csv`` exists. In DDP the validator shards the images over the ranks and gathers on
-rank 0, so the callback runs on every rank and only rank 0 writes.
-"""
 import random
 import shutil
 from pathlib import Path
@@ -20,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 from .config import ROOT, SEED, TRAIN_EVAL_IMAGES, YOLO_DIR
+from .data import dataset_dir
 
 CSV = "train_eval.csv"
 
@@ -43,8 +29,7 @@ def make_subset(n=TRAIN_EVAL_IMAGES, seed=SEED, src=YOLO_DIR, dst=None) -> Path:
 
 
 def _subset_images(trainer) -> Path:
-    """``<dataset dir>/train_eval/images`` of the dataset this run trains on."""
-    path = (ROOT / trainer.args.data).resolve().parent / "train_eval" / "images"
+    path = dataset_dir(trainer.args.data) / "train_eval" / "images"
     if not path.is_dir():
         raise FileNotFoundError(f"{path} missing - run train_eval.make_subset(src=<dataset dir>) first")
     return path
