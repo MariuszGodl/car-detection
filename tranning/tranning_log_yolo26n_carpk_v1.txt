@@ -1,0 +1,156 @@
+
+--- Training: yolo26n_carpk_v1 ---
+New https://pypi.org/project/ultralytics/8.4.194 available 😃 Update with 'pip install -U ultralytics'
+Ultralytics 8.4.185 🚀 Python-3.12.3 torch-2.14.1+cu130 CUDA:0 (NVIDIA GeForce RTX 4080 SUPER, 15946MiB)
+                                                       CUDA:1 (NVIDIA GeForce RTX 4080 SUPER, 15946MiB)
+[34m[1mengine/trainer: [0magnostic_nms=False, amp=True, angle=1.0, augment=False, auto_augment=randaugment, batch=16, bgr=0.0, box=7.5, cache=False, cfg=None, channels_last=None, classes=None, close_mosaic=10, cls=0.5, cls_pw=0.0, cls_remap=True, compile=False, conf=None, copy_paste=0.0, copy_paste_mode=flip, cos_lr=False, cutmix=0.0, data=phase_2/yolo/carpk.yaml, degrees=0.0, deterministic=True, device=0,1, dfl=1.5, dgrad=0.5, dis=6.0, distill_model=None, dlam=1.0, dlog=1.0, dnn=False, dropout=0.0, dynamic=False, embed=None, epochs=30, erasing=0.4, exist_ok=False, fliplr=0.5, flipud=0.0, format=torchscript, fraction=1.0, freeze=None, hsv_h=0.015, hsv_s=0.7, hsv_v=0.4, imgsz=1280, iou=0.7, kobj=1.0, line_width=None, lr0=0.01, lrf=0.01, mask_ratio=4, max_det=300, mixup=0.0, mode=train, model=models/yolo26n.pt, momentum=0.937, mosaic=1.0, multi_scale=0.0, name=yolo26n_carpk_v1, nbs=64, nms=None, opset=None, optimize=False, optimizer=auto, overlap_mask=True, patience=100, perspective=0.0, plots=True, pose=12.0, pretrained=True, profile=False, project=/home/mariusz_godlewski/car_recognition/runs/finetune_yolo26n_carpk_v1, quantize=None, rect=False, resume=False, retina_masks=False, rle=1.0, save=True, save_conf=False, save_crop=False, save_dir=/home/mariusz_godlewski/car_recognition/runs/finetune_yolo26n_carpk_v1/yolo26n_carpk_v1, save_frames=False, save_json=False, save_period=-1, save_txt=False, scale=0.5, seed=0, shear=0.0, show=False, show_boxes=True, show_conf=True, show_labels=True, simplify=True, single_cls=False, source=None, split=val, stream_buffer=False, task=detect, time=None, tracker=tracktrack.yaml, translate=0.1, val=True, verbose=False, vid_stride=1, visualize=False, warmup_bias_lr=0.1, warmup_epochs=3.0, warmup_momentum=0.8, weight_decay=0.0005, workers=8, workspace=None
+Overriding model.yaml nc=80 with nc=1
+
+                   from  n    params  module                                       arguments                     
+  0                  -1  1       464  ultralytics.nn.modules.conv.Conv             [3, 16, 3, 2]                 
+  1                  -1  1      4672  ultralytics.nn.modules.conv.Conv             [16, 32, 3, 2]                
+  2                  -1  1      6640  ultralytics.nn.modules.block.C3k2            [32, 64, 1, False, 0.25]      
+  3                  -1  1     36992  ultralytics.nn.modules.conv.Conv             [64, 64, 3, 2]                
+  4                  -1  1     26080  ultralytics.nn.modules.block.C3k2            [64, 128, 1, False, 0.25]     
+  5                  -1  1    147712  ultralytics.nn.modules.conv.Conv             [128, 128, 3, 2]              
+  6                  -1  1     87040  ultralytics.nn.modules.block.C3k2            [128, 128, 1, True]           
+  7                  -1  1    295424  ultralytics.nn.modules.conv.Conv             [128, 256, 3, 2]              
+  8                  -1  1    346112  ultralytics.nn.modules.block.C3k2            [256, 256, 1, True]           
+  9                  -1  1    164608  ultralytics.nn.modules.block.SPPF            [256, 256, 5, 3, True]        
+ 10                  -1  1    249728  ultralytics.nn.modules.block.C2PSA           [256, 256, 1]                 
+ 11                  -1  1         0  torch.nn.modules.upsampling.Upsample         [None, 2, 'nearest']          
+ 12             [-1, 6]  1         0  ultralytics.nn.modules.conv.Concat           [1]                           
+ 13                  -1  1    119808  ultralytics.nn.modules.block.C3k2            [384, 128, 1, True]           
+ 14                  -1  1         0  torch.nn.modules.upsampling.Upsample         [None, 2, 'nearest']          
+ 15             [-1, 4]  1         0  ultralytics.nn.modules.conv.Concat           [1]                           
+ 16                  -1  1     34304  ultralytics.nn.modules.block.C3k2            [256, 64, 1, True]            
+ 17                  -1  1     36992  ultralytics.nn.modules.conv.Conv             [64, 64, 3, 2]                
+ 18            [-1, 13]  1         0  ultralytics.nn.modules.conv.Concat           [1]                           
+ 19                  -1  1     95232  ultralytics.nn.modules.block.C3k2            [192, 128, 1, True]           
+ 20                  -1  1    147712  ultralytics.nn.modules.conv.Conv             [128, 128, 3, 2]              
+ 21            [-1, 10]  1         0  ultralytics.nn.modules.conv.Concat           [1]                           
+ 22                  -1  1    463104  ultralytics.nn.modules.block.C3k2            [384, 256, 1, True, 0.5, True]
+ 23        [16, 19, 22]  1    241566  ultralytics.nn.modules.head.Detect           [1, 1, True, [64, 128, 256]]  
+YOLO26n summary: 260 layers, 2,504,190 parameters, 2,504,190 gradients, 5.9 GFLOPs
+
+Remapped 1/1 cls head rows from pretrained weights by class name
+Transferred 708/708 items from pretrained weights
+[34m[1mDDP:[0m debug command /home/mariusz_godlewski/car_recognition/.venv/bin/python -m torch.distributed.run --nproc_per_node 2 --master_port 19028 /home/mariusz_godlewski/.config/Ultralytics/DDP/_temp_xoeaja8s136799678979280.py
+
+--- Training: yolo26n_carpk_v1 ---
+[34m[1mTensorBoard: [0mStart with 'tensorboard --logdir /home/mariusz_godlewski/car_recognition/runs/finetune_yolo26n_carpk_v1/yolo26n_carpk_v1', view at http://localhost:6006/
+[34m[1mAMP: [0mrunning Automatic Mixed Precision (AMP) checks...
+[34m[1mAMP: [0mchecks passed ✅
+[34m[1mtrain: [0mFast image access ✅ (ping: 0.0±0.0 ms, read: 10200.4±1276.7 MB/s, size: 1380.1 KB)
+[34m[1mval: [0mFast image access ✅ (ping: 0.0±0.0 ms, read: 10159.7±1002.7 MB/s, size: 1332.1 KB)
+[34m[1moptimizer:[0m 'optimizer=auto' found, ignoring 'lr0=0.01' and determining best 'optimizer' and 'lr0' automatically... 
+[34m[1moptimizer:[0m AdamW(lr=0.002, momentum=0.9) with parameter groups 114 weight(decay=0.0), 126 weight(decay=0.0005), 126 bias(decay=0.0)
+Plotting labels to /home/mariusz_godlewski/car_recognition/runs/finetune_yolo26n_carpk_v1/yolo26n_carpk_v1/labels.jpg... 
+[34m[1mTensorBoard: [0mmodel graph visualization added ✅
+Using 792 train, 197 val images for fraction=1.0 at imgsz=1280
+Using 16 dataloader workers
+Logging results to [1m/home/mariusz_godlewski/car_recognition/runs/finetune_yolo26n_carpk_v1/yolo26n_carpk_v1[0m
+Starting training for 30 epochs...
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+WARNING ⚠️ CUDA out of memory in TaskAlignedAssigner with batch_size=8 and max_num_obj=232; retrying assignment one image at a time on GPU. Model forward batch size is unchanged.
+WARNING ⚠️ CUDA out of memory in TaskAlignedAssigner with batch_size=8 and max_num_obj=150; retrying assignment one image at a time on GPU. Model forward batch size is unchanged.
+                   all        197       8388      0.986      0.984      0.994      0.795
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388       0.99      0.987      0.994      0.805
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388       0.99      0.989      0.994      0.812
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.994      0.988      0.994      0.816
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.992      0.991      0.994      0.815
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.992       0.99      0.995      0.811
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.993      0.993      0.995      0.818
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.993      0.993      0.994      0.817
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.994      0.991      0.994      0.819
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.994      0.991      0.994      0.833
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.992      0.994      0.994      0.829
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.994      0.993      0.994      0.832
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.995      0.992      0.994      0.837
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.994      0.992      0.994      0.825
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.993      0.994      0.994      0.835
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.993      0.994      0.994       0.84
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.993      0.994      0.994      0.833
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.993      0.994      0.994      0.838
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.993      0.994      0.994      0.842
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.995      0.993      0.994      0.841
+Closing dataloader mosaic
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.993      0.993      0.994      0.838
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.993      0.993      0.994      0.839
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.993      0.993      0.994       0.84
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.993      0.994      0.995      0.841
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.993      0.994      0.995      0.841
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.993      0.994      0.994      0.844
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.993      0.995      0.994      0.844
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.993      0.996      0.994      0.846
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.993      0.995      0.994      0.846
+
+      Epoch    GPU_mem   box_loss   cls_loss    l1_loss  Instances       Size
+                   all        197       8388      0.993      0.995      0.994      0.847
+
+30 epochs completed in 0.207 hours.
+Optimizer stripped from /home/mariusz_godlewski/car_recognition/runs/finetune_yolo26n_carpk_v1/yolo26n_carpk_v1/weights/last.pt, 5.5MB
+Optimizer stripped from /home/mariusz_godlewski/car_recognition/runs/finetune_yolo26n_carpk_v1/yolo26n_carpk_v1/weights/best.pt, 5.5MB
+
+Validating /home/mariusz_godlewski/car_recognition/runs/finetune_yolo26n_carpk_v1/yolo26n_carpk_v1/weights/best.pt...
+YOLO26n summary (fused): 121 layers, 2,389,735 parameters, 0 gradients, 5.4 GFLOPs
+                   all        197       8388      0.993      0.995      0.994      0.847
+Speed: 0.5ms preprocess, 1.6ms inference, 0.0ms loss, 6.1ms postprocess per image
+Results saved to [1m/home/mariusz_godlewski/car_recognition/runs/finetune_yolo26n_carpk_v1/yolo26n_carpk_v1[0m
